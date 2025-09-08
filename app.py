@@ -119,6 +119,10 @@ except Exception as e:
 if "p_fire_15d" not in df.columns:
     st.error("CSV must contain a 'p_fire_15d' column.")
     st.stop()
+    
+# normalize probability column
+if "max_p_1_15" in df.columns:
+    df.rename(columns={"max_p_1_15": "p_fire_15d"}, inplace=True)
 
 # band if not present
 if "risk_band" not in df.columns:
