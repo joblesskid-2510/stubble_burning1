@@ -9,6 +9,49 @@ import streamlit as st
 from streamlit_folium import st_folium
 import folium
 
+# ---------- EMAIL HELPERS ----------
+import ssl, smtplib, mimetypes, io, json
+from email.message import EmailMessage
+
+def _get_secret(key, default=""):
+    # works both locally (env) and on Streamlit Cloud (secrets)
+    import os, streamlit as st
+    return os.getenv(key) or st.secrets.get(key, default)
+
+SMTP_HOST   = _get_secret("SMTP_HOST", "smtp.gmail.com")
+SMTP_PORT   = int(_get_secret("SMTP_PORT", "465"))
+SMTP_USER   = _get_secret("SMTP_USER", "")
+SMTP_PASS   = _get_secret("SMTP_PASS", "")
+SENDER_NAME = _get_secret("SENDER_NAME", "Stubble Early Warning System")
+DEFAULT_RECIPS = [r.strip() for r in _get_secret("RECIPIENTS", "").split(",") if r.strip()]
+
+def compose_alert_email(subject:str, body:str, recipients:list, attachments:list[tuple]):
+    """
+    attachments: list of tuples (filename, bytes, mime_type)
+    """
+    msg = EmailMessage()
+    sender = f"{SENDER_NAME} <{SMTP_USER}>" if SENDER_NAME and SMTP_USER else (SMTP_USER or "alerts@no-reply")
+    msg["From"] = sender
+    msg["To"] = ", ".join(recipients)
+    msg["Subject"] = subject
+    msg.set_content(body)
+
+    for fname, blob, mime in attachments:
+        if not blob:
+            continue
+        maintype, subtype = (mime or "application/octet-stream").split("/", 1)
+        msg.add_attachment(blob, maintype=maintype, subtype=subtype, filename=fname)
+    return msg
+
+def send_email_message(msg: EmailMessage):
+    if not (SMTP_USER and SMTP_PASS):
+        raise RuntimeError("Missing SMTP_USER/SMTP_PASS. Set them in Streamlit Secrets.")
+    ctx = ssl.create_default_context()
+    with smtplib.SMTP_SSL(SMTP_HOST, SMTP_PORT, context=ctx) as server:
+        server.login(SMTP_USER, SMTP_PASS)
+        server.send_message(msg)
+
+
 # ------------------ SETTINGS -------------------
 st.set_page_config(page_title="Stubble Alerts", layout="wide")
 
